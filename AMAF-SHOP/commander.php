@@ -5,6 +5,11 @@ if (session_status() === PHP_SESSION_NONE) {
 require 'config.php';
 require_once 'includes/functions.php';
 
+// Configuration CinetPay - u00e0 remplacer par vos clu00e9s ru00e9elles
+define('CINETPAY_SITE_ID', '105894887');  // Remplacer par votre Site ID CinetPay
+define('CINETPAY_API_KEY', '751137124682209027ec079.91233481');  // Remplacer par votre API Key CinetPay
+define('CINETPAY_RETURN_URL', 'https://client.cinetpay.com/v1');  // URL de retour apru00e8s paiement
+
 // Vérifier si l'utilisateur est connecté
 if (!isset($_SESSION['user_id'])) {
     $_SESSION['error'] = "Vous devez être connecté pour passer une commande.";
@@ -17,6 +22,8 @@ if (empty($_SESSION['panier'])) {
     $_SESSION['error'] = "Votre panier est vide";
     header('Location: panier.php');
     exit();
+
+
 }
 
 $error = '';
@@ -75,11 +82,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $adresse_livraison = $_POST['adresse_livraison'];
             $instructions = $_POST['instructions'];
             $telephone = $_POST['telephone'];
+            $mode_paiement = isset($_POST['payment_method']) ? $_POST['payment_method'] : 'livraison';
+            
+            // Vérifier si la colonne mode_paiement existe, sinon l'ajouter
+            try {
+                $check_column = "SHOW COLUMNS FROM commande LIKE 'mode_paiement'";
+                $column_result = $conn->query($check_column);
+                if ($column_result->num_rows == 0) {
+                    $alter_table = "ALTER TABLE commande ADD COLUMN mode_paiement VARCHAR(50) DEFAULT 'livraison' AFTER informations_livraison";
+                    $conn->query($alter_table);
+                }
+            } catch (Exception $e) {
+                // Ignorer l'erreur et continuer - nous utiliserons la version simplifiée de la requête
+            }
             
             // Créer la commande avec les informations de livraison
             $user_id = $_SESSION['user_id'];
-            $sql = "INSERT INTO commande (utilisateur_id, livreur_id, total, date_commande, statut, informations_livraison) 
-                    VALUES (?, ?, ?, NOW(), 'en attente', ?)";
+            
+            // Vérifier si la colonne mode_paiement existe avant de l'utiliser
+            $check_column = "SHOW COLUMNS FROM commande LIKE 'mode_paiement'";
+            $column_result = $conn->query($check_column);
+            
+            if ($column_result->num_rows > 0) {
+                // La colonne existe, utilisez-la dans la requête
+                $sql = "INSERT INTO commande (utilisateur_id, livreur_id, total, date_commande, statut, informations_livraison, mode_paiement) 
+                        VALUES (?, ?, ?, NOW(), 'en attente', ?, ?)";
+            } else {
+                // La colonne n'existe pas, utilisez la requête sans cette colonne
+                $sql = "INSERT INTO commande (utilisateur_id, livreur_id, total, date_commande, statut, informations_livraison) 
+                        VALUES (?, ?, ?, NOW(), 'en attente', ?)";
+            }
 
             // Créer le tableau d'informations de livraison
             $infos_livraison = [
@@ -95,8 +127,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ];
 
             $infos_livraison_json = json_encode($infos_livraison);
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param("iiis", $user_id, $livreur_id, $total, $infos_livraison_json);
+            
+            if ($column_result->num_rows > 0) {
+                // Utiliser la version avec mode_paiement
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("iiiss", $user_id, $livreur_id, $total, $infos_livraison_json, $mode_paiement);
+            } else {
+                // Utiliser la version sans mode_paiement
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("iiis", $user_id, $livreur_id, $total, $infos_livraison_json);
+            }
             $stmt->execute();
             $commande_id = $conn->insert_id;
 
@@ -138,8 +178,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Vider le panier
             $_SESSION['panier'] = [];
             $_SESSION['success'] = "Commande validée avec succès !";
-            header('Location: confirmation.php?commande=' . $commande_id);
-            exit();
+            
+            // Vérifier si la colonne transaction_id existe, sinon l'ajouter
+            try {
+                $check_column = "SHOW COLUMNS FROM commande LIKE 'transaction_id'";
+                $column_result = $conn->query($check_column);
+                if ($column_result->num_rows == 0) {
+                    $alter_table = "ALTER TABLE commande ADD COLUMN transaction_id VARCHAR(100) NULL AFTER mode_paiement";
+                    $conn->query($alter_table);
+                }
+            } catch (Exception $e) {
+                // Ignorer l'erreur et continuer
+            }
+            
+            // Vérifier le mode de paiement sélectionné
+            if ($mode_paiement === 'en_ligne') {
+                // Redirection vers CinetPay
+                // Préparer les données pour CinetPay
+                $transaction_id = 'CMD' . $commande_id . '_' . time();
+                
+                // Essayer de stocker l'ID de transaction
+                try {
+                    $sql = "UPDATE commande SET transaction_id = ? WHERE id = ?";
+                    $stmt = $conn->prepare($sql);
+                    $stmt->bind_param("si", $transaction_id, $commande_id);
+                    $stmt->execute();
+                } catch (Exception $e) {
+                    // Continuer même si ça échoue
+                }
+                
+                // Rediriger vers la page de paiement CinetPay
+                header('Location: paiement-cinetpay.php?cmd=' . $commande_id . '&transaction_id=' . $transaction_id);
+                exit();
+            } else {
+                // Paiement à la livraison, redirection vers la page de confirmation
+                header('Location: confirmation.php?commande=' . $commande_id);
+                exit();
+            }
             
         } catch (Exception $e) {
             $conn->rollback();
@@ -170,17 +245,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-weight: bold;
         }
         .livreur-card {
-            border: 2px solid #eee;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 15px;
+            border: 1px solid #eee;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 10px;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
         }
         .livreur-card:hover {
             border-color: #3498db;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         }
         .livreur-card.selected {
             border-color: #2ecc71;
@@ -189,51 +262,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .livreur-info {
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 10px;
         }
         .livreur-avatar {
-            width: 50px;
-            height: 50px;
+            width: 30px;
+            height: 30px;
             border-radius: 50%;
             background-color: #e9ecef;
             display: flex;
             align-items: center;
             justify-content: center;
+            font-size: 0.8rem;
         }
         .rating {
             color: #f1c40f;
         }
         .order-summary {
             background-color: #f8f9fa;
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
         .location-icon {
             color: #007bff;
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.2); }
-            100% { transform: scale(1); }
         }
 
         .payment-card {
-            border: 2px solid #eee;
-            border-radius: 15px;
-            padding: 20px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 10px;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
             position: relative;
             background: white;
         }
 
         .payment-card:hover {
             border-color: #007bff;
-            transform: translateY(-3px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         }
 
         .payment-card.selected {
@@ -243,15 +308,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .payment-radio {
             position: absolute;
-            top: 20px;
-            right: 20px;
-            transform: scale(1.2);
+            top: 10px;
+            right: 10px;
         }
 
         .payment-icon {
-            font-size: 2rem;
+            font-size: 1.5rem;
             color: #007bff;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
         }
 
         .payment-content {
@@ -262,17 +326,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .tracking-steps {
             display: flex;
             justify-content: space-between;
-            margin: 30px 0;
+            margin: 15px 0;
             position: relative;
         }
 
         .tracking-steps::before {
             content: '';
             position: absolute;
-            top: 20px;
+            top: 15px;
             left: 0;
             right: 0;
-            height: 2px;
+            height: 1px;
             background: #e9ecef;
             z-index: 1;
         }
@@ -281,21 +345,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             position: relative;
             z-index: 2;
             background: white;
-            padding: 0 15px;
+            padding: 0 5px;
             text-align: center;
+            font-size: 0.9rem;
         }
 
         .step-icon {
-            width: 40px;
-            height: 40px;
+            width: 30px;
+            height: 30px;
             border-radius: 50%;
             background: #e9ecef;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 10px;
+            margin: 0 auto 5px;
             color: #6c757d;
-            transition: all 0.3s ease;
+            font-size: 0.8rem;
         }
 
         .step-active .step-icon {
@@ -313,9 +378,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php include 'includes/header.php'; ?>
 
     <div class="container mt-4">
-        <h2 class="mb-4">
+        <h4 class="mb-3">
             <i class="fas fa-shopping-bag me-2"></i>Finaliser la commande
-        </h2>
+        </h4>
 
         <?php if ($error): ?>
             <div class="alert alert-danger">
@@ -326,11 +391,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="row">
             <div class="col-md-8">
                 <!-- Sélection du livreur -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h4 class="mb-0">Choisir votre livreur</h4>
+                <div class="card mb-3">
+                    <div class="card-header py-2">
+                        <h5 class="mb-0">Choisir votre livreur</h5>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body py-2">
                         <?php if (empty($livreurs_disponibles)): ?>
                             <div class="alert alert-warning">
                                 <i class="fas fa-exclamation-triangle me-2"></i>
@@ -344,14 +409,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             <i class="fas fa-user"></i>
                                         </div>
                                         <div>
-                                            <h5 class="mb-1"><?= htmlspecialchars($livreur['nom']) ?></h5>
-                                            <small class="text-muted">
-                                                Tél: <?= htmlspecialchars($livreur['telephone']) ?>
-                                            </small>
+                                            <span class="fw-bold"><?= htmlspecialchars($livreur['nom']) ?></span>
+                                            <small class="d-block text-muted">Tél: <?= htmlspecialchars($livreur['telephone']) ?></small>
                                         </div>
-                                        <div class="ms-auto">
-                                            <span class="badge bg-success">Disponible</span>
-                                        </div>
+                                        <span class="badge bg-success ms-auto">Disponible</span>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -360,74 +421,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <!-- Informations de livraison -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h4 class="mb-0">Informations de livraison</h4>
+                <div class="card mb-3">
+                    <div class="card-header py-2">
+                        <h5 class="mb-0">Informations de livraison</h5>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body py-2">
                         <form id="orderForm" method="POST">
                             <input type="hidden" name="livreur_id" id="livreur_id">
                             <input type="hidden" name="latitude" id="latitude">
                             <input type="hidden" name="longitude" id="longitude">
+                            <input type="hidden" name="payment_method" id="payment_method" value="livraison">
                             
-                            <div class="mb-3">
-                                <label class="form-label">Téléphone *</label>
-                                <input type="tel" class="form-control" name="telephone" required>
+                            <div class="mb-2">
+                                <label class="form-label small mb-1">Téléphone *</label>
+                                <input type="tel" class="form-control form-control-sm" name="telephone" required>
                             </div>
 
-                            <div class="mb-3">
-                                <label class="form-label">Adresse de livraison *</label>
-                                <div class="input-group">
-                                    <input type="text" 
-                                           class="form-control" 
-                                           name="adresse_livraison" 
-                                           id="adresse_livraison" 
-                                           required>
-                                    <button class="btn btn-primary" 
-                                            type="button" 
-                                            onclick="getLocation()">
+                            <div class="mb-2">
+                                <label class="form-label small mb-1">Adresse de livraison *</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" class="form-control" name="adresse_livraison" id="adresse_livraison" required>
+                                    <button class="btn btn-primary btn-sm" type="button" onclick="getLocation()">
                                         <i class="fas fa-location-crosshairs"></i>
                                     </button>
                                 </div>
-                                <small class="text-muted">
-                                    <i class="fas fa-info-circle"></i> 
-                                    Cliquez sur l'icône pour utiliser votre position actuelle
-                                </small>
+                                <small class="text-muted small">Cliquez sur l'icône pour localisation actuelle</small>
                             </div>
 
-                            <div class="mb-3">
-                                <label class="form-label">Instructions spéciales</label>
-                                <textarea class="form-control" name="instructions" rows="2"></textarea>
+                            <div class="mb-2">
+                                <label class="form-label small mb-1">Instructions spéciales</label>
+                                <textarea class="form-control form-control-sm" name="instructions" rows="1"></textarea>
                             </div>
                         </form>
                     </div>
                 </div>
 
+            </div>
+
+            <div class="col-md-4">
                 <!-- Mode de paiement -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h4 class="mb-0">Mode de paiement</h4>
+                <div class="card mb-3">
+                    <div class="card-header py-2">
+                        <h5 class="mb-0">Mode de paiement</h5>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body py-2">
                         <div class="payment-options">
                             <div class="row">
-                                <div class="col-md-6 mb-3">
+                                <div class="col-6 mb-2">
                                     <div class="payment-card" onclick="selectPaymentMethod(this, 'livraison')">
                                         <input type="radio" name="payment_method" value="livraison" class="payment-radio" required>
                                         <div class="payment-content">
                                             <i class="fas fa-truck-fast payment-icon"></i>
-                                            <h5>Paiement à la livraison</h5>
-                                            <p class="text-muted mb-0">Payez en espèces à la réception</p>
+                                            <h6>Paiement à la livraison</h6>
+                                            <small class="text-muted">Espèces</small>
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-md-6 mb-3">
+                                <div class="col-6 mb-2">
                                     <div class="payment-card" onclick="selectPaymentMethod(this, 'en_ligne')">
                                         <input type="radio" name="payment_method" value="en_ligne" class="payment-radio" required>
                                         <div class="payment-content">
                                             <i class="fas fa-credit-card payment-icon"></i>
-                                            <h5>Paiement en ligne</h5>
-                                            <p class="text-muted mb-0">Payez maintenant par carte bancaire</p>
+                                            <h6>Paiement en ligne</h6>
+                                            <small class="text-muted">Carte bancaire</small>
                                         </div>
                                     </div>
                                 </div>
@@ -435,15 +491,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <div class="col-md-4">
+                
                 <!-- Résumé de la commande -->
                 <div class="order-summary">
-                    <h4 class="mb-4">Résumé de la commande</h4>
+                    <h5 class="mb-3">Résumé de la commande</h5>
                     
                     <!-- Liste des produits -->
-                    <div class="mb-4">
+                    <div class="mb-3">
                         <?php foreach ($produits_commande as $produit): ?>
                             <div class="d-flex justify-content-between mb-2">
                                 <span><?= htmlspecialchars($produit['nom']) ?> x <?= $produit['quantite'] ?></span>
@@ -538,6 +592,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Mettre à jour le formulaire
         document.getElementById('payment_method').value = method;
+        
+        // Debug - afficher la valeur sélectionnée dans la console
+        console.log('Mode de paiement sélectionné: ' + method);
     }
 
     // Fonction pour le suivi de commande (à ajouter dans tracking.php)

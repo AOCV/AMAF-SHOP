@@ -13,7 +13,43 @@ $error = '';
 
 // Traitement du formulaire d'ajout/modification de promotion
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['action'])) {
+    // Débogage - Afficher ce qui est reçu en POST
+    // echo '<pre>POST: '; print_r($_POST); echo '</pre>';
+    
+    if (isset($_POST['supprimer']) && isset($_POST['promotion_id'])) {
+        // Suppression d'une promotion
+        $promotion_id = intval($_POST['promotion_id']);
+        
+        // Récupérer la catégorie associée à la promotion
+        $query_cat = "SELECT p.*, c.nom AS categorie_nom FROM promotion p 
+                     LEFT JOIN categorie c ON p.categorie_id = c.id
+                     WHERE p.id = ?";
+        $stmt_cat = $conn->prepare($query_cat);
+        $stmt_cat->bind_param("i", $promotion_id);
+        $stmt_cat->execute();
+        $result_cat = $stmt_cat->get_result();
+        $promotion_info = $result_cat->fetch_assoc();
+        
+        if ($promotion_info) {
+            // Supprimer la promotion
+            $query = "DELETE FROM promotion WHERE id = ?";
+            $stmt = $conn->prepare($query);
+            $stmt->bind_param("i", $promotion_id);
+            
+            if ($stmt->execute()) {
+                // Si la promotion était active, réinitialiser les produits de la catégorie
+                if (isset($promotion_info['actif']) && $promotion_info['actif']) {
+                    reinitialiserPromotionsCategorie($conn, $promotion_info['categorie_id']);
+                }
+                $message = "La promotion '" . htmlspecialchars($promotion_info['nom']) . "' a été supprimée avec succès.";
+            } else {
+                $error = "Erreur lors de la suppression de la promotion : " . $conn->error;
+            }
+        } else {
+            $error = "Promotion non trouvée.";
+        }
+    }
+    else if (isset($_POST['action'])) {
         // Récupération des données du formulaire
         $categorie_id = intval($_POST['categorie_id'] ?? 0);
         $type_reduction = $_POST['type_reduction'] ?? 'montant';
@@ -111,36 +147,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = "Promotion non trouvée.";
                 }
             }
-        }
-    } elseif (isset($_POST['supprimer']) && isset($_POST['promotion_id'])) {
-        // Suppression d'une promotion
-        $promotion_id = intval($_POST['promotion_id']);
-        
-        // Récupérer la catégorie associée à la promotion
-        $query_cat = "SELECT categorie_id, actif FROM promotion WHERE id = ?";
-        $stmt_cat = $conn->prepare($query_cat);
-        $stmt_cat->bind_param("i", $promotion_id);
-        $stmt_cat->execute();
-        $result_cat = $stmt_cat->get_result();
-        $promotion_info = $result_cat->fetch_assoc();
-        
-        if ($promotion_info) {
-            // Supprimer la promotion
-            $query = "DELETE FROM promotion WHERE id = ?";
-            $stmt = $conn->prepare($query);
-            $stmt->bind_param("i", $promotion_id);
-            
-            if ($stmt->execute()) {
-                // Si la promotion était active, réinitialiser les produits de la catégorie
-                if ($promotion_info['actif']) {
-                    reinitialiserPromotionsCategorie($conn, $promotion_info['categorie_id']);
-                }
-                $message = "La promotion a été supprimée avec succès.";
-            } else {
-                $error = "Erreur lors de la suppression de la promotion : " . $conn->error;
-            }
-        } else {
-            $error = "Promotion non trouvée.";
         }
     }
 }
@@ -950,34 +956,41 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
                                                     </div>
                                                     
                                                     <!-- Modal de confirmation de suppression -->
-                                                    <div class="modal fade" id="deleteModal<?= $promotion['id'] ?>" tabindex="-1">
+                                                    <div class="modal fade" id="deleteModal<?= $promotion['id'] ?>" tabindex="-1" aria-labelledby="deleteModalLabel<?= $promotion['id'] ?>" aria-hidden="true">
                                                         <div class="modal-dialog modal-dialog-centered">
                                                             <div class="modal-content">
                                                                 <div class="modal-header bg-danger text-white">
-                                                                    <h5 class="modal-title">
+                                                                    <h5 class="modal-title" id="deleteModalLabel<?= $promotion['id'] ?>">
                                                                         <i class="fas fa-exclamation-triangle me-2"></i>Confirmer la suppression
                                                                     </h5>
-                                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                                                                 </div>
                                                                 <div class="modal-body">
                                                                     <p>Êtes-vous sûr de vouloir supprimer la promotion <strong>"<?= htmlspecialchars($promotion['nom']) ?>"</strong> ?</p>
-                                                                    <?php if ($promotion['actif']): ?>
-                                                                        <div class="alert alert-warning">
-                                                                            <i class="fas fa-exclamation-circle me-2"></i>
-                                                                            <strong>Attention :</strong> Cette promotion est actuellement active. La supprimer annulera les réductions sur tous les produits de la catégorie <?= htmlspecialchars($promotion['categorie_nom']) ?>.
-                                                                        </div>
+                                                                    <p class="text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Cette action est irréversible.</p>
+                                                                    
+                                                                    <?php if ($promotion['actif'] && $statut === 'active'): ?>
+                                                                    <div class="alert alert-warning">
+                                                                        <i class="fas fa-info-circle me-2"></i>
+                                                                        <strong>Attention :</strong> Cette promotion est actuellement active. La supprimer annulera les réductions sur tous les produits de la catégorie <?= htmlspecialchars($promotion['categorie_nom']) ?>.
+                                                                    </div>
                                                                     <?php endif; ?>
                                                                 </div>
                                                                 <div class="modal-footer">
                                                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                                                                         <i class="fas fa-times me-2"></i>Annuler
                                                                     </button>
-                                                                    <form method="POST">
+                                                                    <form method="POST" action="promotions.php" style="display: inline;">
+                                                                        <input type="hidden" name="supprimer" value="1">
                                                                         <input type="hidden" name="promotion_id" value="<?= $promotion['id'] ?>">
-                                                                        <button type="submit" name="supprimer" class="btn btn-danger">
-                                                                            <i class="fas fa-trash me-2"></i>Supprimer
+                                                                        <button type="submit" class="btn btn-danger">
+                                                                            <i class="fas fa-trash me-2"></i>Supprimer définitivement
                                                                         </button>
                                                                     </form>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </div>

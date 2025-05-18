@@ -1052,8 +1052,8 @@ function formatStatus($status) {
                                         </td>
                                         <td>
                                             <div class="client-info">
-                                                <span class="client-name"><?= htmlspecialchars($commande['client_nom']) ?></span>
-                                                <span class="client-email"><?= htmlspecialchars($commande['client_email']) ?></span>
+                                                <span class="client-name"><?= htmlspecialchars($commande['utilisateur_id']) ?></span>
+                                                <!-- <span class="client-email"><?= htmlspecialchars($commande['client_email']) ?></span> -->
                                                 <?php if ($commande['telephone']): ?>
                                                     <span class="client-phone">
                                                         <i class="fas fa-phone-alt me-1 text-muted"></i><?= htmlspecialchars($commande['telephone']) ?>

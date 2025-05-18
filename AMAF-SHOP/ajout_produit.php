@@ -125,9 +125,9 @@ if ($result) {
         .page-header {
             background: var(--gradient);
             color: white;
-            padding: 30px;
-            border-radius: 15px;
-            margin-bottom: 30px;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
             position: relative;
             overflow: hidden;
             box-shadow: var(--shadow);
@@ -153,10 +153,10 @@ if ($result) {
         
         .product-form-card {
             background: white;
-            border-radius: 15px;
-            padding: 30px;
+            border-radius: 10px;
+            padding: 15px;
             box-shadow: var(--shadow);
-            margin-bottom: 30px;
+            margin-bottom: 15px;
             animation: fadeInUp 0.5s ease;
             border: none;
         }
@@ -174,11 +174,12 @@ if ($result) {
         }
         
         .form-control, .form-select {
-            border-radius: 10px;
-            padding: 12px 15px;
+            border-radius: 6px;
+            padding: 8px 12px;
             border: 1px solid #e0e0e0;
             transition: var(--transition);
             box-shadow: none;
+            font-size: 0.9rem;
         }
         
         .form-control:focus, .form-select:focus {
@@ -564,7 +565,7 @@ if ($result) {
                 <div class="col-lg-8">
                     <div class="product-form-card">
                         <div class="form-section">
-                            <h3 class="form-section-title"><i class="fas fa-info-circle me-2"></i>Informations générales</h3>
+                            <h5 class="form-section-title"><i class="fas fa-info-circle me-2"></i>Informations générales</h5>
                             <div class="row mb-4">
                                 <div class="col-md-6">
                                     <label for="nom" class="form-label required-field">Nom du produit</label>
@@ -595,7 +596,7 @@ if ($result) {
                         </div>
                         
                         <div class="form-section">
-                            <h3 class="form-section-title"><i class="fas fa-tags me-2"></i>Prix et stock</h3>
+                            <h5 class="form-section-title"><i class="fas fa-tags me-2"></i>Prix et stock</h5>
                             <div class="row mb-4">
                                 <div class="col-md-6">
                                     <label for="prix" class="form-label required-field">Prix (CFA)</label>
@@ -627,17 +628,17 @@ if ($result) {
                         </div>
                         
                         <div class="form-section">
-                            <h3 class="form-section-title"><i class="fas fa-cog me-2"></i>Attributs additionnels</h3>
+                            <h5 class="form-section-title"><i class="fas fa-cog me-2"></i>Attributs additionnels</h5>
                             <div class="row">
-                                <div class="col-md-4 mb-4">
+                                <div class="col-md-6 mb-3">
                                     <label for="marque" class="form-label">Marque</label>
                                     <input type="text" class="form-control" id="marque" name="marque" value="<?= htmlspecialchars($marque ?? '') ?>">
                                 </div>
-                                <div class="col-md-4 mb-4">
+                                <div class="col-md-6 mb-3">
                                     <label for="taille" class="form-label">Taille</label>
                                     <input type="text" class="form-control" id="taille" name="taille" value="<?= htmlspecialchars($taille ?? '') ?>">
                                 </div>
-                                <div class="col-md-4 mb-4">
+                                <div class="col-md-6 mb-3">
                                     <label for="couleur" class="form-label">Couleur</label>
                                     <div class="input-group">
                                         <input type="text" class="form-control" id="couleur" name="couleur" value="<?= htmlspecialchars($couleur ?? '') ?>">
@@ -656,13 +657,13 @@ if ($result) {
                 <div class="col-lg-4">
                     <div class="product-form-card">
                         <div class="form-section">
-                            <h3 class="form-section-title"><i class="fas fa-images me-2"></i>Images du produit</h3>
+                            <h5 class="form-section-title"><i class="fas fa-images me-2"></i>Images du produit</h5>
                             
                             <!-- Image principale -->
                             <div class="mb-4">
                                 <label class="form-label required-field">Image principale</label>
                                 <div class="image-upload-container">
-                                    <div class="image-preview" id="imagePreview">
+                                    <div class="image-preview mb-3" id="imagePreview" style="background-image: url(''); height: 150px;">
                                         <i class="fas fa-cloud-upload-alt"></i>
                                         <p>Cliquez ou déposez une image</p>
                                     </div>

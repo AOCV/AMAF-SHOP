@@ -145,9 +145,9 @@ $infos_livraison = array_merge([
                                 <?php foreach ($produits as $produit): ?>
                                     <tr>
                                         <td><?= htmlspecialchars($produit['nom']) ?></td>
-                                        <td><?= number_format($produit['prix_unitaire'], 0) ?> CFA</td>
+                                        <td><?= number_format($produit['prix_unitaire'] ) ?> CFA</td>
                                         <td><?= $produit['quantite'] ?></td>
-                                        <td><?= number_format($produit['prix_unitaire'] * $produit['quantite'], 0) ?> CFA</td>
+                                        <td><?= number_format($produit['prix_unitaire'] * $produit['quantite'], ) ?> CFA</td>
                                     </tr>
                                 <?php endforeach; ?>
                                 <tr>
@@ -156,7 +156,7 @@ $infos_livraison = array_merge([
                                 </tr>
                                 <tr>
                                     <td colspan="3" class="text-end"><strong>Total :</strong></td>
-                                    <td><strong><?= number_format($commande['total'] + 1500, 0) ?> CFA</strong></td>
+                                    <td><strong><?= number_format($commande['total'] ) ?> CFA</strong></td>
                                 </tr>
                             </tbody>
                         </table>

@@ -10,6 +10,8 @@ if ($produit_id <= 0) {
     header('Location: index.php?error=Produit non trouvé');
     exit;
 }
+// var_dump($_SESSION['panier']);
+// exit();
 
 // Récupération des données du produit
 $query = "SELECT p.*, c.nom as categorie_nom 
@@ -561,7 +563,7 @@ $result_similaires = $stmt_similaires->get_result();
                             <i class="fas fa-shopping-cart"></i>
                             <?php if (!empty($_SESSION['panier'])): ?>
                                 <span class="cart-badge badge bg-danger">
-                                    <?= array_sum($_SESSION['panier']) ?>
+                                    <?= count($_SESSION['panier']) ?>
                                 </span>
                             <?php endif; ?>
                         </a>
@@ -668,7 +670,7 @@ $result_similaires = $stmt_similaires->get_result();
                         </div>
                         <div>
                             <i class="fas fa-trademark"></i>
-                            <span>Marque: <?= htmlspecialchars($produit['marque'] ?: 'Non spécifiée') ?></span>
+                            <span>Marque: <?= htmlspecialchars($produit['marque']) ?></span>
                         </div>
                         <div>
                             <i class="fas fa-box"></i>
@@ -755,11 +757,11 @@ $result_similaires = $stmt_similaires->get_result();
                                     </tr>
                                     <tr>
                                         <th scope="row">Marque</th>
-                                        <td><?= htmlspecialchars($produit['marque'] ?: 'Non spécifiée') ?></td>
+                                        <td><?= htmlspecialchars($produit['marque']) ?></td>
                                     </tr>
                                     <tr>
                                         <th scope="row">Catégorie</th>
-                                        <td><?= htmlspecialchars($produit['categorie_nom'] ?: 'Non catégorisé') ?></td>
+                                        <td><?= htmlspecialchars($produit['categorie_nom']) ?></td>
                                     </tr>
                                     <tr>
                                         <th scope="row">Matériaux</th>

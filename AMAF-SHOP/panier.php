@@ -380,7 +380,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_product']) && 
                                     <img src="<?= htmlspecialchars($produit['image_url']) ?>" alt="<?= htmlspecialchars($produit['nom']) ?>" class="img-thumbnail" style="max-width: 100px;">
                                 </td>
                                 <td><?= htmlspecialchars($produit['nom']) ?></td>
-                                <td><?= number_format($produit['prix'], 2) ?> €</td>
+                                <td><?= number_format($produit['prix']) ?> CFA</td>
                                 <td>
                                     <input type="number" 
                                            name="quantite[<?= $produit['id'] ?>]" value="<?= '' . $produit['quantite']['quantite'] ?>" max="<?= $produit['stock'] ?>" 
@@ -400,7 +400,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_product']) && 
                                         <option value="XXL" <?= $produit['quantite']['taille'] === 'XXL' ? 'selected' : '' ?>>XXL</option>
                                     </select>
                                 </td>
-                                <td><?= number_format($produit['sous_total'], 2) ?> €</td>
+                                <td><?= number_format($produit['sous_total']) ?> CFA</td>
                                 <td>
                                     <button type="button" 
                                             class="btn btn-remove"
@@ -419,7 +419,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_product']) && 
                             <h4 class="mb-0">Total de la commande</h4>
                         </div>
                         <div class="col-md-6 text-end">
-                            <h3 class="mb-0"><?= number_format($total, 2) ?> €</h3>
+                            <h3 class="mb-0"><?= number_format($total) ?> CFA</h3>
                         </div>
                     </div>
                 </div>

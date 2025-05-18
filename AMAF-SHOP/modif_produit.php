@@ -140,6 +140,9 @@ if (!$produit) {
             --primary: #3a7bd5;
             --primary-light: #5a95e5;
             --secondary: #00d2ff;
+            --success: #28a745;
+            --danger: #dc3545;
+            --warning: #ffc107;
             --success: #2ecc71;
             --warning: #f39c12;
             --danger: #e74c3c;
@@ -311,6 +314,32 @@ if (!$produit) {
         
         .image-preview:hover {
             transform: scale(1.02);
+        }
+        
+        /* Promotion styles */
+        .promotion-section {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .promotion-options {
+            transition: all 0.3s ease;
+        }
+        
+        .badge.bg-success {
+            display: inline-block;
+            padding: 0.35em 0.65em;
+            font-size: 0.75em;
+            font-weight: 700;
+            line-height: 1;
+            color: #fff;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: baseline;
+            border-radius: 0.25rem;
+            background-color: var(--success);
         }
         
         .custom-file-label {
@@ -530,7 +559,7 @@ if (!$produit) {
             </div>
             <?php if ($produit['marque']): ?>
                 <div class="metadata-item animate__animated animate__fadeInUp" style="animation-delay: 0.3s;">
-                    <i class="fas fa-trademark"></i> Marque: <?= htmlspecialchars($produit['marque']) ?>
+                     Marque: <?= htmlspecialchars($produit['marque']) ?>
                 </div>
             <?php endif; ?>
             <?php if ($produit['taille']): ?>
@@ -706,38 +735,81 @@ if (!$produit) {
                             </div>
                         </div>
 
-
-                    <!-- Prix et promotion -->
-                    <div class="product-form-card mt-4">
-                        <h3 class="form-section-title mb-3">
-                            <i class="fas fa-tag me-2"></i>Résumé de prix
-                        </h3>
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="price-label">Prix de base</span>
-                            <span class="price-value" id="displayPrice"><?= number_format($produit['prix'], 0) ?> CFA</span>
+                        <!-- Prix et promotion -->
+                        <div class="product-form-card mt-4">
+                            <h3 class="form-section-title mb-3">
+                                <i class="fas fa-tag me-2"></i>Prix et Promotion
+                            </h3>
+                            
+                            <!-- Promotion section -->
+                            <div class="promotion-section mb-4">
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="form-check form-switch me-3">
+                                        <input class="form-check-input" type="checkbox" id="activatePromotion" <?= !empty($produit['promotion']) ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="activatePromotion">Activer la promotion</label>
+                                    </div>
+                                    <span class="badge bg-success">Promotion active</span>
+                                </div>
+                                
+                                <div class="promotion-options" id="promotionOptions">
+                                    <div class="row mb-3">
+                                        <div class="col-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="promoType" id="promoAmount" value="amount" checked>
+                                                <label class="form-check-label" for="promoAmount">
+                                                    Montant fixe
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="promoType" id="promoPercent" value="percent">
+                                                <label class="form-check-label" for="promoPercent">
+                                                    Pourcentage
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="input-group mb-3">
+                                        <input type="number" class="form-control" id="promotionValue" min="0" step="0.01" value="<?= !empty($produit['promotion']) ? $produit['promotion'] : '' ?>">
+                                        <span class="input-group-text" id="promoSymbol">CFA</span>
+                                        <button type="button" class="btn btn-primary" id="applyPromotion">Appliquer</button>
+                                    </div>
+                                    
+                                    <!-- Hidden input that will be submitted -->
+                                    <input type="hidden" name="promotion" id="promotionInput" value="<?= !empty($produit['promotion']) ? $produit['promotion'] : '' ?>">
+                                </div>
+                            </div>
+                            
+                            <!-- Price summary -->
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="price-label">Prix de base</span>
+                                <span class="price-value" id="displayPrice"><?= number_format($produit['prix'], 0) ?> CFA</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-3" id="promotionDisplay" <?= !$produit['promotion'] ? 'style="display:none;"' : '' ?>>
+                                <span class="price-label">Réduction</span>
+                                <span class="discount-value" id="displayPromotion">
+                                    -<?= $produit['promotion'] ? number_format($produit['promotion'], 0) : '0' ?> CFA
+                                </span>
+                            </div>
+                            <hr>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="price-label fw-bold">Prix final</span>
+                                <span class="price-value text-success" id="displayFinalPrice">
+                                    <?= number_format($produit['prix'] - ($produit['promotion'] ?? 0), 0) ?> CFA
+                                </span>
+                            </div>
                         </div>
-                        <div class="d-flex justify-content-between align-items-center mb-3" id="promotionDisplay" <?= !$produit['promotion'] ? 'style="display:none;"' : '' ?>>
-                            <span class="price-label">Réduction</span>
-                            <span class="discount-value" id="displayPromotion">
-                                -<?= $produit['promotion'] ? number_format($produit['promotion'], 0) : '0' ?> CFA
-                            </span>
-                        </div>
-                        <hr>
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="price-label fw-bold">Prix final</span>
-                            <span class="price-value text-success" id="displayFinalPrice">
-                                <?= number_format($produit['prix'] - ($produit['promotion'] ?? 0), 0) ?> CFA
-                            </span>
-                        </div>
-                    </div>
                         
-                    <div class="d-grid gap-2 mt-4">
-                        <button type="submit" class="btn btn-primary btn-action animate__animated animate__pulse">
-                            <i class="fas fa-save me-2"></i>Enregistrer les modifications
-                        </button>
-                        <a href="supprime_produit.php" class="btn btn-secondary btn-action">
-                            <i class="fas fa-times me-2"></i>Annuler
-                        </a>
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary btn-action animate__animated animate__pulse">
+                                <i class="fas fa-save me-2"></i>Enregistrer les modifications
+                            </button>
+                            <a href="supprime_produit.php" class="btn btn-secondary btn-action">
+                                <i class="fas fa-times me-2"></i>Annuler
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -844,11 +916,60 @@ if (!$produit) {
             
             // Price and promotion calculation
             const priceInput = document.getElementById('prix');
-            const promotionInput = document.getElementById('promotion');
+            const promotionInput = document.getElementById('promotionInput');
             const displayPrice = document.getElementById('displayPrice');
             const displayPromotion = document.getElementById('displayPromotion');
             const displayFinalPrice = document.getElementById('displayFinalPrice');
             const promotionDisplay = document.getElementById('promotionDisplay');
+            const activatePromotion = document.getElementById('activatePromotion');
+            const promotionOptions = document.getElementById('promotionOptions');
+            const promoTypeAmount = document.getElementById('promoAmount');
+            const promoTypePercent = document.getElementById('promoPercent');
+            const promoSymbol = document.getElementById('promoSymbol');
+            const promotionValue = document.getElementById('promotionValue');
+            const applyPromoButton = document.getElementById('applyPromotion');
+            
+            // Initialize promotion section visibility
+            promotionOptions.style.display = activatePromotion.checked ? 'block' : 'none';
+            
+            // Toggle promotion options visibility
+            activatePromotion.addEventListener('change', function() {
+                promotionOptions.style.display = this.checked ? 'block' : 'none';
+                if (!this.checked) {
+                    promotionInput.value = '';
+                    updatePriceDisplay();
+                }
+            });
+            
+            // Change symbol based on promotion type
+            promoTypeAmount.addEventListener('change', function() {
+                if (this.checked) {
+                    promoSymbol.textContent = 'CFA';
+                }
+            });
+            
+            promoTypePercent.addEventListener('change', function() {
+                if (this.checked) {
+                    promoSymbol.textContent = '%';
+                }
+            });
+            
+            // Apply promotion button
+            applyPromoButton.addEventListener('click', function() {
+                const price = parseFloat(priceInput.value) || 0;
+                const promoValue = parseFloat(promotionValue.value) || 0;
+                
+                if (promoTypePercent.checked) {
+                    // Calculate the amount based on percentage
+                    const discount = price * (promoValue / 100);
+                    promotionInput.value = discount.toFixed(2);
+                } else {
+                    // Use fixed amount
+                    promotionInput.value = promoValue.toFixed(2);
+                }
+                
+                updatePriceDisplay();
+            });
             
             const updatePriceDisplay = () => {
                 const price = parseFloat(priceInput.value) || 0;

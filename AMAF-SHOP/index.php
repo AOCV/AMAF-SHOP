@@ -2,9 +2,17 @@
 session_start();
 require 'config.php';
 
+// Récupérer les paramètres du site
+$parametres = [];
+$query_parametres = "SELECT * FROM parametres WHERE id = 1";
+$result_parametres = $conn->query($query_parametres);
+if ($result_parametres && $result_parametres->num_rows > 0) {
+    $parametres = $result_parametres->fetch_assoc();
+}
+
 // Récupérer les catégories
 $categories = [];
-$query_categories = "SELECT id, nom FROM categorie";
+$query_categories = "SELECT id, nom, description, image_url FROM categorie";
 $result_categories = $conn->query($query_categories);
 if ($result_categories) {
     while ($row = $result_categories->fetch_assoc()) {
@@ -12,22 +20,26 @@ if ($result_categories) {
     }
 }
 
-// Ajout de conditions de recherche si nécessaire
-if (isset($_GET['search']) && !empty($_GET['search'])) {
-    $search = $conn->real_escape_string($_GET['search']);
-    if (strpos($query, 'WHERE') !== false) {
-        $query .= " AND (p.nom LIKE '%$search%' OR p.description LIKE '%$search%')";
-    } else {
-        $query .= " WHERE p.nom LIKE '%$search%' OR p.description LIKE '%$search%'";
-    }
+// Préparation des variables pour les filtres
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$categorie_filter = isset($_GET['categorie']) ? intval($_GET['categorie']) : 0;
+
+// Configuration de la pagination pour tous les produits
+$products_page = isset($_GET['page']) ? intval($_GET['page']) : 1;
+$products_per_page = 8; // Nombre de produits par page
+$products_start = ($products_page - 1) * $products_per_page;
+
+// Base de la requête SQL
+$query = "SELECT p.*, c.nom as categorie_nom \n          FROM produit p \n          LEFT JOIN categorie c ON p.categorie_id = c.id \n          WHERE 1=1";
+
+// Ajout des filtres si nécessaire
+if ($categorie_filter > 0) {
+    $query .= " AND p.categorie_id = " . $categorie_filter;
 }
 
-
-
-// Ajout de conditions de filtrage par catégorie si nécessaire
-if (isset($_GET['categorie']) && $_GET['categorie'] > 0) {
-    $categorie_id = intval($_GET['categorie']);
-    $query= " WHERE p.categorie_id = $categorie_id";
+if (!empty($search)) {
+    $search = $conn->real_escape_string($search);
+    $query .= " AND (p.nom LIKE '%$search%' OR p.description LIKE '%$search%' OR p.marque LIKE '%$search%')";
 }
 // Images prédéfinies pour certaines catégories
 $categorie_images = [
@@ -43,11 +55,18 @@ $categorie_filter = isset($_GET['categorie']) ? intval($_GET['categorie']) : 0;
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
 // Construction de la requête SQL avec filtres
+// Configuration de la pagination pour tous les produits
+$products_page = isset($_GET['page']) ? intval($_GET['page']) : 1;
+$products_per_page = 8; // Nombre de produits par page
+$products_start = ($products_page - 1) * $products_per_page;
+
+// Base de la requête SQL
 $query = "SELECT p.*, c.nom as categorie_nom 
           FROM produit p 
           LEFT JOIN categorie c ON p.categorie_id = c.id 
           WHERE 1=1";
 
+// Ajout des filtres si nécessaire
 if ($categorie_filter > 0) {
     $query .= " AND p.categorie_id = " . $categorie_filter;
 }
@@ -57,15 +76,36 @@ if (!empty($search)) {
     $query .= " AND (p.nom LIKE '%$search%' OR p.description LIKE '%$search%' OR p.marque LIKE '%$search%')";
 }
 
+// Compter le nombre total de produits qui correspondent aux critères
+$count_query = "SELECT COUNT(*) as total " . substr($query, strpos($query, 'FROM'));
+$result_count = $conn->query($count_query);
+$total_products = $result_count->fetch_assoc()['total'];
+$total_pages = ceil($total_products / $products_per_page);
+
+// Ajouter la clause LIMIT pour la pagination
+$query .= " ORDER BY p.id DESC LIMIT $products_start, $products_per_page";
+
+// Exécuter la requête paginée
 $result = $conn->query($query);
 
-// Récupérer les produits en promotion (limitons à 4 pour améliorer le chargement)
+// Configuration de la pagination pour les promotions
+$promo_page = isset($_GET['promo_page']) ? intval($_GET['promo_page']) : 1;
+$promos_par_page = 6; // Nombre de promotions par page
+$promo_debut = ($promo_page - 1) * $promos_par_page;
+
+// Compter le nombre total de produits en promotion
+$query_count_promos = "SELECT COUNT(*) as total FROM produit WHERE promotion > 0";
+$result_count_promos = $conn->query($query_count_promos);
+$total_promos = $result_count_promos->fetch_assoc()['total'];
+$total_pages_promos = ceil($total_promos / $promos_par_page);
+
+// Récupérer les produits en promotion avec pagination
 $query_promotions = "SELECT p.*, c.nom as categorie_nom 
                     FROM produit p 
                     LEFT JOIN categorie c ON p.categorie_id = c.id 
                     WHERE p.promotion > 0 
                     ORDER BY p.promotion DESC 
-                    LIMIT 4";
+                    LIMIT $promo_debut, $promos_par_page";
 $result_promotions = $conn->query($query_promotions);
 
 // Récupérer les nouveaux produits
@@ -196,12 +236,12 @@ $result_nouveautes = $conn->query($query_nouveautes);
                             <li><a class="dropdown-item" href="#">Toutes les collections</a></li>
                         </ul>
                     </li>
-                    <li class="nav-item">
+                    <!-- <li class="nav-item">
                         <a class="nav-link" href="#nouveautes">Nouveautés</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#promotions">Promotions</a>
-                    </li>
+                    </li> -->
                     <li class="nav-item">
                         <a class="nav-link" href="#contact">Contact</a>
                     </li>
@@ -250,7 +290,7 @@ $result_nouveautes = $conn->query($query_nouveautes);
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link btn btn-outline-light btn-sm animate__animated animate__pulse animate__infinite" href="register.php">
+                            <a class="nav-link " href="register.php">
                                 <i class="fas fa-user-plus me-1"></i>Inscription
                             </a>
                         </li>
@@ -319,22 +359,23 @@ $result_nouveautes = $conn->query($query_nouveautes);
             <div class="row">
                 <?php foreach ($categories as $index => $cat): 
                     $catName = strtolower(htmlspecialchars($cat['nom']));
-                    $catImagePath = isset($categorie_images[$catName]) ? $categorie_images[$catName] : 'https://source.unsplash.com/300x200/?'.urlencode($catName);
+                    // Utiliser l'image téléchargée par l'admin si disponible
+                    if (!empty($cat['image_url'])) {
+                        $catImagePath = $cat['image_url'];
+                    } else {
+                        // Fallback sur les images prédéfinies ou une image générique
+                        $catImagePath = isset($categorie_images[$catName]) ? $categorie_images[$catName] : 'https://source.unsplash.com/300x200/?'.urlencode($catName);
+                    }
                 ?>
                     <div class="col-6 col-md-4 col-lg-3" data-aos="zoom-in" data-aos-delay="<?= $index * 50 ?>">
                         <a href="?categorie=<?= $cat['id'] ?>" class="text-decoration-none category-link">
                             <div class="category-card">
-                                <?php if($catName == 'habits'): ?>
-                                    <img src="https://images.pexels.com/photos/298863/pexels-photo-298863.jpeg?auto=compress&cs=tinysrgb&w=600" alt="Habits" class="category-img" loading="lazy">
-                                <?php elseif($catName == 'chaussures'): ?>
-                                    <img src="https://images.pexels.com/photos/267320/pexels-photo-267320.jpeg?auto=compress&cs=tinysrgb&w=600" alt="Chaussures" class="category-img" loading="lazy">
-                                <?php elseif($catName == 'pantalons'): ?>
-                                    <img src="https://images.pexels.com/photos/1598507/pexels-photo-1598507.jpeg?auto=compress&cs=tinysrgb&w=600" alt="Pantalons" class="category-img" loading="lazy">
-                                <?php else: ?>
-                                    <img src="<?= $catImagePath ?>" alt="<?= htmlspecialchars($cat['nom']) ?>" class="category-img" loading="lazy">
-                                <?php endif; ?>
+                                <img src="<?= $catImagePath ?>" alt="<?= htmlspecialchars($cat['nom']) ?>" class="category-img" loading="lazy">
                                 <div class="category-overlay">
                                     <h5 class="category-name"><?= htmlspecialchars($cat['nom']) ?></h5>
+                                    <?php if (!empty($cat['description'])): ?>
+                                    <p class="category-description"><?= htmlspecialchars(substr($cat['description'], 0, 50)) . (strlen($cat['description']) > 50 ? '...' : '') ?></p>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </a>
@@ -371,8 +412,8 @@ $result_nouveautes = $conn->query($query_nouveautes);
                                             data-id="<?= $produit['id'] ?>" 
                                             data-name="<?= htmlspecialchars($produit['nom']) ?>" 
                                             data-price="<?= number_format($produit['prix'], 0) ?> CFA"
-                                            data-category="<?= htmlspecialchars($produit['categorie_nom'] ?: 'Non catégorisé') ?>"
-                                            data-brand="<?= htmlspecialchars($produit['marque'] ?: 'Non spécifiée') ?>"
+                                            data-category="<?= htmlspecialchars($produit['categorie_nom']) ?>"
+                                            data-brand="<?= htmlspecialchars($produit['marque']) ?>"
                                             data-image="<?= !empty($produit['image_url']) ? htmlspecialchars($produit['image_url']) : 'https://images.pexels.com/photos/1598505/pexels-photo-1598505.jpeg?auto=compress&cs=tinysrgb&w=600' ?>">
                                         <i class="fas fa-eye"></i> Aperçu rapide
                                     </button>
@@ -381,9 +422,9 @@ $result_nouveautes = $conn->query($query_nouveautes);
                             
                             <div class="product-body">
                                 <h5 class="product-title"><?= htmlspecialchars($produit['nom']) ?></h5>
-                                <p class="product-brand">
-                                    <i class="fas fa-trademark me-1"></i><?= htmlspecialchars($produit['marque'] ?: 'Non spécifiée') ?>
-                                </p>
+                                <!-- <p class="product-brand">
+                                    <i class="fas fa-trademark me-1"></i><?= htmlspecialchars($produit['marque']) ?>
+                                </p> -->
                                 <div class="product-price">
                                     <?= number_format($produit['prix']) ?> CFA
                                 </div>
@@ -417,8 +458,8 @@ $result_nouveautes = $conn->query($query_nouveautes);
                     while ($produit = $result_promotions->fetch_assoc()):
                         $index++;
                 ?>
-                    <div class="col-md-6 col-lg-3" data-aos="fade-up" data-aos-delay="<?= $index?>">
-                        <div class="product-card">
+                    <div class="col-md-6 col-lg-3" data-aos="fade-up" data-aos-delay="<?= $index * 50 ?>">
+                        <div class="product-card promotion-card">
                             <?php if ($produit['promotion'] > 0): ?>
                                 <div class="product-badge">-<?= $produit['promotion'] ?></div>
                             <?php endif; ?>
@@ -437,8 +478,8 @@ $result_nouveautes = $conn->query($query_nouveautes);
                                             data-id="<?= $produit['id'] ?>" 
                                             data-name="<?= htmlspecialchars($produit['nom']) ?>" 
                                             data-price="<?= number_format($produit['prix'], 0) ?> CFA"
-                                            data-category="<?= htmlspecialchars($produit['categorie_nom'] ?: 'Non catégorisé') ?>"
-                                            data-brand="<?= htmlspecialchars($produit['marque'] ?: 'Non spécifiée') ?>"
+                                            data-category="<?= htmlspecialchars($produit['categorie_nom'] ) ?>"
+                                            data-brand="<?= htmlspecialchars($produit['marque']) ?>"
                                             data-image="<?= !empty($produit['image_url']) ? htmlspecialchars($produit['image_url']) : 'https://images.pexels.com/photos/1598505/pexels-photo-1598505.jpeg?auto=compress&cs=tinysrgb&w=600' ?>">
                                         <i class="fas fa-eye"></i> Aperçu rapide
                                     </button>
@@ -447,9 +488,9 @@ $result_nouveautes = $conn->query($query_nouveautes);
                             
                             <div class="product-body">
                                 <h5 class="product-title"><?= htmlspecialchars($produit['nom']) ?></h5>
-                                <p class="product-brand">
-                                    <i class="fas fa-trademark me-1"></i><?= htmlspecialchars($produit['marque'] ?: 'Non spécifiée') ?>
-                                </p>
+                                <!-- <p class="product-brand">
+                                    <i class="fas fa-trademark me-1"></i><?= htmlspecialchars($produit['marque'] ) ?>
+                                </p> -->
                                 <div class="product-price">
                                     <span class="old-price"><?= number_format($produit['prix']) ?> CFA</span>
                                     <span class="text-danger"><?= number_format($produit['prix'] - ($produit['promotion'])) ?> CFA</span>
@@ -470,6 +511,37 @@ $result_nouveautes = $conn->query($query_nouveautes);
                 endif; 
                 ?>
             </div>
+            
+            <?php if ($total_pages_promos > 1): ?>
+            <!-- Pagination des promotions -->
+            <div class="promotion-pagination">
+                <nav aria-label="Pagination des promotions">
+                    <ul class="pagination justify-content-center">
+                        <?php if ($promo_page > 1): ?>
+                        <li class="page-item">
+                            <a class="page-link" href="index.php?promo_page=<?= $promo_page - 1 ?>#promotions" aria-label="Pru00e9cu00e9dent">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                        <?php endif; ?>
+                        
+                        <?php for ($i = 1; $i <= $total_pages_promos; $i++): ?>
+                        <li class="page-item <?= ($i == $promo_page) ? 'active' : '' ?>">
+                            <a class="page-link" href="index.php?promo_page=<?= $i ?>#promotions"><?= $i ?></a>
+                        </li>
+                        <?php endfor; ?>
+                        
+                        <?php if ($promo_page < $total_pages_promos): ?>
+                        <li class="page-item">
+                            <a class="page-link" href="index.php?promo_page=<?= $promo_page + 1 ?>#promotions" aria-label="Suivant">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                        <?php endif; ?>
+                    </ul>
+                </nav>
+            </div>
+            <?php endif; ?>
         </div>
     </section>
 
@@ -844,10 +916,12 @@ $result_nouveautes = $conn->query($query_nouveautes);
             background: linear-gradient(45deg, #3a7bd5, #00d2ff);
             padding: 60px 0;
             color: white;
+            margin-bottom: 30px;
         }
         
         .promotion-section .section-title {
             color: white;
+            margin-bottom: 30px;
         }
         
         .promotion-section .section-title::after {
@@ -855,8 +929,210 @@ $result_nouveautes = $conn->query($query_nouveautes);
         }
         
         .promotion-section .product-card {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.15);
             backdrop-filter: blur(5px);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            height: auto;
+        }
+        
+        .promotion-section .product-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        .promotion-section .product-img-container {
+            height: 200px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .promotion-section .product-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.5s ease;
+        }
+        
+        .promotion-section .product-card:hover .product-img {
+            transform: scale(1.1);
+        }
+        
+        .promotion-section .product-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--accent-color);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-weight: bold;
+            z-index: 2;
+            font-size: 0.8rem;
+        }
+        
+        .promotion-section .product-body {
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .promotion-section .product-title {
+            color: white;
+            font-size: 1rem;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        
+        .promotion-section .product-brand {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+        }
+        
+        .promotion-section .product-price {
+            margin-bottom: 15px;
+            color: white;
+        }
+        
+        .promotion-section .product-price .old-price {
+            text-decoration: line-through;
+            color: rgba(255, 255, 255, 0.6);
+            margin-right: 10px;
+            font-size: 0.9rem;
+        }
+        
+        .promotion-section .product-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+        
+        .promotion-section .btn-view, 
+        .promotion-section .btn-add {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        
+        .promotion-section .btn-view {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            margin-right: 5px;
+        }
+        
+        .promotion-section .btn-add {
+            background-color: var(--accent-color);
+            color: white;
+            flex-grow: 1;
+        }
+        
+        .promotion-card .btn-details {
+            padding: 8px 12px;
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            flex: 0 0 auto;
+            width: 40%;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .promotion-card .btn-details:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .promotion-card .btn-add-cart {
+            padding: 8px 12px;
+            background-color: var(--accent-color, #ff6b6b);
+            color: white;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            flex: 1;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        
+        .promotion-card .btn-add-cart:hover {
+            background-color: #ff5252;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        /* Styles pour la pagination des promotions */
+        .promotion-pagination {
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }
+        
+        .promotion-pagination .pagination {
+            gap: 5px;
+        }
+        
+        .promotion-pagination .page-link {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .promotion-pagination .page-link:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .promotion-pagination .page-item.active .page-link {
+            background-color: var(--accent-color, #ff6b6b);
+            border-color: var(--accent-color, #ff6b6b);
+            color: white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Styles pour la pagination des produits */
+        .products-pagination {
+            margin-top: 30px;
+            margin-bottom: 20px;
+        }
+        
+        .products-pagination .pagination {
+            gap: 5px;
+        }
+        
+        .products-pagination .page-link {
+            background-color: #f0f2f5;
+            color: var(--primary-color);
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .products-pagination .page-link:hover {
+            background-color: #e9ecef;
+            color: var(--primary-color);
+            transform: translateY(-2px);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+        
+        .products-pagination .page-item.active .page-link {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            color: white;
+            box-shadow: 0 2px 5px rgba(58, 123, 213, 0.3);
         }
         
         /* Modal de prévisualisation rapide */
@@ -1317,9 +1593,9 @@ $result_nouveautes = $conn->query($query_nouveautes);
                             
                             <div class="product-body">
                                 <h5 class="product-title"><?= htmlspecialchars($produit['nom']) ?></h5>
-                                <p class="product-brand">
+                                <!-- <p class="product-brand">
                                     <i class="fas fa-trademark me-1"></i><?= htmlspecialchars($produit['marque'] ?: 'Non spécifiée') ?>
-                                </p>
+                                </p> -->
                                     <div class="product-price">
                                         <?php if ($produit['promotion'] > 0): ?>
                                         <span class="old-price"><?= number_format($produit['prix']) ?> CFA</span>
@@ -1353,6 +1629,37 @@ $result_nouveautes = $conn->query($query_nouveautes);
                 </div>
             <?php endif; ?>
         </div>
+        
+        <?php if ($total_pages > 1): ?>
+        <!-- Pagination des produits -->
+        <div class="products-pagination mt-4 mb-5">
+            <nav aria-label="Pagination des produits">
+                <ul class="pagination justify-content-center">
+                    <?php if ($products_page > 1): ?>
+                    <li class="page-item">
+                        <a class="page-link" href="index.php?page=<?= $products_page - 1 ?><?= $categorie_filter ? '&categorie='.$categorie_filter : '' ?><?= !empty($search) ? '&search='.urlencode($search) : '' ?>#products" aria-label="Précédent">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    <?php endif; ?>
+                    
+                    <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                    <li class="page-item <?= ($i == $products_page) ? 'active' : '' ?>">
+                        <a class="page-link" href="index.php?page=<?= $i ?><?= $categorie_filter ? '&categorie='.$categorie_filter : '' ?><?= !empty($search) ? '&search='.urlencode($search) : '' ?>#products"><?= $i ?></a>
+                    </li>
+                    <?php endfor; ?>
+                    
+                    <?php if ($products_page < $total_pages): ?>
+                    <li class="page-item">
+                        <a class="page-link" href="index.php?page=<?= $products_page + 1 ?><?= $categorie_filter ? '&categorie='.$categorie_filter : '' ?><?= !empty($search) ? '&search='.urlencode($search) : '' ?>#products" aria-label="Suivant">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                    <?php endif; ?>
+                </ul>
+            </nav>
+        </div>
+        <?php endif; ?>
     </div>
     </section>
 
@@ -1395,16 +1702,27 @@ $result_nouveautes = $conn->query($query_nouveautes);
     <!-- Footer -->
     <footer class="footer" id="contact">
         <div class="container">
-            <div class="row">
+            <div class="row footer-main">
                 <div class="col-lg-4 mb-4 mb-lg-0">
-                    <h4 class="footer-title">AMAF-SHOP</h4>
-                    <p>Votre destination pour des produits de qualité à des prix compétitifs. Nous sommes engagés à vous offrir la meilleure expérience d'achat en ligne.</p>
+                    <h4 class="footer-title"><?= htmlspecialchars($parametres['nom_site'] ?? 'AMAF-SHOP') ?></h4>
+                    <p><?= htmlspecialchars($parametres['meta_description'] ?? 'Votre destination pour des produits de qualité à des prix compétitifs.') ?></p>
                     <div class="social-links mt-4">
-                        <a href="#"><i class="fab fa-facebook-f"></i></a>
-                        <a href="#"><i class="fab fa-twitter"></i></a>
-                        <a href="#"><i class="fab fa-instagram"></i></a>
-                        <a href="#"><i class="fab fa-linkedin-in"></i></a>
-                </div>
+                        <?php if (!empty($parametres['facebook_url'])): ?>
+                        <a href="<?= htmlspecialchars($parametres['facebook_url']) ?>" target="_blank"><i class="fab fa-facebook-f"></i></a>
+                        <?php endif; ?>
+                        <?php if (!empty($parametres['twitter_url'])): ?>
+                        <a href="<?= htmlspecialchars($parametres['twitter_url']) ?>" target="_blank"><i class="fab fa-twitter"></i></a>
+                        <?php endif; ?>
+                        <?php if (!empty($parametres['instagram_url'])): ?>
+                        <a href="<?= htmlspecialchars($parametres['instagram_url']) ?>" target="_blank"><i class="fab fa-instagram"></i></a>
+                        <?php endif; ?>
+                        <?php if (!empty($parametres['whatsapp_url'])): ?>
+                        <a href="<?= htmlspecialchars($parametres['whatsapp_url']) ?>" target="_blank"><i class="fab fa-whatsapp"></i></a>
+                        <?php endif; ?>
+                        <?php if (!empty($parametres['youtube_url'])): ?>
+                        <a href="<?= htmlspecialchars($parametres['youtube_url']) ?>" target="_blank"><i class="fab fa-youtube"></i></a>
+                        <?php endif; ?>
+                    </div>
                 </div>
                 <div class="col-lg-2 col-md-6 mb-4 mb-md-0">
                     <h5 class="footer-title">Catégories</h5>
@@ -1426,15 +1744,15 @@ $result_nouveautes = $conn->query($query_nouveautes);
                 <div class="col-lg-4">
                     <h5 class="footer-title">Contactez-nous</h5>
                     <ul class="footer-links">
-                        <li><i class="fas fa-map-marker-alt me-2"></i> 123 Rue du Commerce, Abidjan</li>
-                        <li><i class="fas fa-phone me-2"></i> +225 07 07 48 95 45</li>
-                        <li><i class="fas fa-envelope me-2"></i> contact@amaf-shop.com</li>
+                        <li><i class="fas fa-map-marker-alt me-2"></i> <?= htmlspecialchars($parametres['adresse'] ?? '123 Rue du Commerce, Abidjan') ?></li>
+                        <li><i class="fas fa-phone me-2"></i> <?= htmlspecialchars($parametres['telephone'] ?? '+225 07 07 48 95 45') ?></li>
+                        <li><i class="fas fa-envelope me-2"></i> <?= htmlspecialchars($parametres['email_contact'] ?? 'contact@amaf-shop.com') ?></li>
                         <li><i class="fas fa-clock me-2"></i> Lun-Sam: 9h à 18h</li>
                     </ul>
                 </div>
             </div>
             <div class="footer-bottom">
-                <p>&copy; <?= date('Y') ?> AMAF-SHOP. Tous droits réservés. Conçu avec <i class="fas fa-heart text-danger"></i></p>
+                <p>&copy; <?= date('Y') ?> <?= htmlspecialchars($parametres['nom_site'] ?? 'AMAF-SHOP') ?>. Tous droits réservés. Conçu avec <i class="fas fa-heart text-danger"></i></p>
             </div>
         </div>
     </footer>

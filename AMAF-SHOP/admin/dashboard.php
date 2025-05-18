@@ -681,14 +681,14 @@ function getStatusColor($status) {
                 </div>
             </div>
             
-            <div class="col-md-6 col-lg-3">
+            <!-- <div class="col-md-6 col-lg-3">
                 <div class="stat-card bg-warning animate__animated animate__fadeInUp" style="animation-delay: 0.3s;">
                     <div class="stat-title">Chiffre d'affaires</div>
                     <div class="stat-value"><?= number_format($stats['chiffre_affaires'], 0) ?> CFA</div>
                     <a href="rapports.php" class="stat-link">Voir les rapports <i class="fas fa-arrow-right ms-1"></i></a>
                     <div class="icon"><i class="fas fa-money-bill-wave"></i></div>
                 </div>
-            </div>
+            </div> -->
         </div>
         
         <!-- Charts and Activity -->

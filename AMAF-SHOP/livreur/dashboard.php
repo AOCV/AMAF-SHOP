@@ -110,7 +110,7 @@ function formatStatus($status) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
     <style>
         body {
-            background-color: #f8f9fa;
+            background-color:rgb(15, 123, 231);
         }
         
         .card {
@@ -388,21 +388,22 @@ function formatStatus($status) {
 </head>
 <body>
     <!-- Navbar améliorée -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-gradient" style="background: linear-gradient(45deg, #1a237e, #0d47a1);">
-        <div class="container">
-            <a class="navbar-brand" href="#">
-                <i class="fas fa-truck me-2"></i>Dashboard Livreur
+    <nav class="navbar navbar-expand-lg navbar-dark bg-gradient" style="background: linear-gradient(90deg, #1e3c72, #2a5298);">
+    <div class="container">
+        <a class="navbar-brand" href="#">
+            <i class="fas fa-truck me-2"></i>Dashboard Livreur
+        </a>
+        <div class="d-flex align-items-center">
+            <span class="text-white me-3">
+                <i class="fas fa-user-circle me-2"></i><?= htmlspecialchars($_SESSION['user_name']) ?>
+            </span>
+            <a href="../logout.php" class="btn btn-outline-light btn-sm">
+                <i class="fas fa-sign-out-alt me-2"></i>Déconnexion
             </a>
-            <div class="d-flex align-items-center">
-                <span class="text-white me-3">
-                    <i class="fas fa-user-circle me-2"></i><?= htmlspecialchars($_SESSION['user_name']) ?>
-                </span>
-                <a href="../logout.php" class="btn btn-outline-light btn-sm">
-                    <i class="fas fa-sign-out-alt me-2"></i>Déconnexion
-                </a>
-            </div>
         </div>
-    </nav>
+    </div>
+</nav>
+
 
     <!-- Statistiques -->
     <div class="container mt-4">

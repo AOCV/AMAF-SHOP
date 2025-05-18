@@ -486,8 +486,9 @@ function formatStatus($status) {
                             </div>
                         </div>
                     <?php endforeach; ?>
-                </div>
 
+                </div>
+ 
                 <div class="total-section">
                     <div class="d-flex justify-content-between align-items-center">
                         <h5 class="mb-0"><i class="fas fa-receipt me-2"></i>Total de la commande</h5>
